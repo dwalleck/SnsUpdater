@@ -18,8 +18,13 @@ namespace SnsUpdater.API
             // Initialize OpenTelemetry
             TelemetryConfiguration.Initialize();
 
-            AreaRegistration.RegisterAllAreas();
+            // Initialize Unity first
             UnityConfig.RegisterComponents();
+            
+            // Then activate Unity for MVC
+            UnityMvcActivator.Start();
+
+            AreaRegistration.RegisterAllAreas();
             GlobalConfiguration.Configure(WebApiConfig.Register);
             FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
             RouteConfig.RegisterRoutes(RouteTable.Routes);
@@ -33,6 +38,9 @@ namespace SnsUpdater.API
         {
             // Shutdown OpenTelemetry
             TelemetryConfiguration.Shutdown();
+            
+            // Dispose Unity container
+            UnityMvcActivator.Shutdown();
         }
 
         private void StartBackgroundServices()

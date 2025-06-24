@@ -25,12 +25,13 @@ namespace SnsUpdater.API.Events
 
         public async Task Handle(PersonCreatedEvent notification, CancellationToken cancellationToken)
         {
-            using var activity = TelemetryConfiguration.MessagingActivitySource.StartActivity("HandlePersonCreatedEvent");
-            activity?.SetTag("event.type", "PersonCreated");
-            activity?.SetTag("person.id", notification.PersonId);
-
-            try
+            using (var activity = TelemetryConfiguration.MessagingActivitySource.StartActivity("HandlePersonCreatedEvent"))
             {
+                activity?.SetTag("event.type", "PersonCreated");
+                activity?.SetTag("person.id", notification.PersonId);
+
+                try
+                {
                 // Create the SNS message
                 var messageBody = new
                 {
@@ -79,8 +80,10 @@ namespace SnsUpdater.API.Events
             catch (Exception ex)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.RecordException(ex);
+                activity?.SetTag("exception.type", ex.GetType().FullName);
+                activity?.SetTag("exception.message", ex.Message);
                 throw;
+            }
             }
         }
     }

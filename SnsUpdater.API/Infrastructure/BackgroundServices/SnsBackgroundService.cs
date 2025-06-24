@@ -88,9 +88,12 @@ namespace SnsUpdater.API.Infrastructure.BackgroundServices
                 catch (Exception ex)
                 {
                     // Log error and continue processing
-                    using var activity = TelemetryConfiguration.BackgroundServiceActivitySource.StartActivity("ProcessMessageError");
-                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                    activity?.RecordException(ex);
+                    using (var activity = TelemetryConfiguration.BackgroundServiceActivitySource.StartActivity("ProcessMessageError"))
+                    {
+                        activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                        activity?.SetTag("exception.type", ex.GetType().FullName);
+                        activity?.SetTag("exception.message", ex.Message);
+                    }
                     
                     await Task.Delay(1000, cancellationToken);
                 }
@@ -100,14 +103,15 @@ namespace SnsUpdater.API.Infrastructure.BackgroundServices
         private async Task ProcessMessageWithRetryAsync(SnsMessage message, CancellationToken cancellationToken)
         {
             // Create OpenTelemetry activity span for distributed tracing
-            using var activity = TelemetryConfiguration.BackgroundServiceActivitySource.StartActivity("ProcessSnsMessage");
-            activity?.SetTag("message.id", message.Id);
-            activity?.SetTag("message.correlationId", message.CorrelationId);
-            activity?.SetTag("message.entityType", message.EntityType);
-            activity?.SetTag("message.entityId", message.EntityId);
+            using (var activity = TelemetryConfiguration.BackgroundServiceActivitySource.StartActivity("ProcessSnsMessage"))
+            {
+                activity?.SetTag("message.id", message.Id);
+                activity?.SetTag("message.correlationId", message.CorrelationId);
+                activity?.SetTag("message.entityType", message.EntityType);
+                activity?.SetTag("message.entityId", message.EntityId);
 
-            var stopwatch = Stopwatch.StartNew();
-            var retryDelay = _initialRetryDelayMs;
+                var stopwatch = Stopwatch.StartNew();
+                var retryDelay = _initialRetryDelayMs;
 
             // Retry loop - continues until success or max attempts reached
             while (message.RetryCount < _maxRetryAttempts)
@@ -163,7 +167,8 @@ namespace SnsUpdater.API.Infrastructure.BackgroundServices
                         
                         // Mark span as error for tracing
                         activity?.SetStatus(ActivityStatusCode.Error, "Max retries exceeded");
-                        activity?.RecordException(ex);
+                        activity?.SetTag("exception.type", ex.GetType().FullName);
+                        activity?.SetTag("exception.message", ex.Message);
                         return; // Exit after dead lettering
                     }
 
@@ -172,6 +177,7 @@ namespace SnsUpdater.API.Infrastructure.BackgroundServices
                     await Task.Delay(retryDelay, cancellationToken);
                     retryDelay *= 2; // Double delay for next retry
                 }
+            }
             }
         }
 

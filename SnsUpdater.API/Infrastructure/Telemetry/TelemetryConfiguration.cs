@@ -1,10 +1,14 @@
 using System;
+using System.Configuration;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Exporter;
+using System.Net.Http;
+using OpenTelemetry.Logs;
 
 namespace SnsUpdater.API.Infrastructure.Telemetry
 {
@@ -35,40 +39,76 @@ namespace SnsUpdater.API.Infrastructure.Telemetry
 
         private static TracerProvider _tracerProvider;
         private static MeterProvider _meterProvider;
+        private static readonly GrpcHttpClientFactory _httpClientFactory = new GrpcHttpClientFactory();
 
         public static void Initialize()
         {
+            var environment = ConfigurationManager.AppSettings["Environment"] ?? "development";
+            var useOtlp = bool.Parse(ConfigurationManager.AppSettings["UseOtlpExporter"] ?? "false");
+            var otlpEndpoint = ConfigurationManager.AppSettings["OtlpEndpoint"] ?? "http://localhost:4317";
+            
+            System.Diagnostics.Trace.WriteLine($"[OTEL] Initializing OpenTelemetry - UseOtlp: {useOtlp}, Endpoint: {otlpEndpoint}");
+            
             var resourceBuilder = ResourceBuilder.CreateDefault()
                 .AddService(ServiceName, serviceVersion: ServiceVersion)
                 .AddAttributes(new[]
                 {
-                    new System.Collections.Generic.KeyValuePair<string, object>("environment", "production"),
+                    new System.Collections.Generic.KeyValuePair<string, object>("environment", environment),
                     new System.Collections.Generic.KeyValuePair<string, object>("deployment.region", "us-east-1")
                 });
 
             // Configure tracing
-            _tracerProvider = Sdk.CreateTracerProviderBuilder()
+            var tracerProviderBuilder = Sdk.CreateTracerProviderBuilder()
                 .SetResourceBuilder(resourceBuilder)
                 .AddSource(ApiActivitySource.Name)
                 .AddSource(MessagingActivitySource.Name)
                 .AddSource(BackgroundServiceActivitySource.Name)
                 .AddAspNetInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddConsoleExporter() // For development
-                // .AddOtlpExporter() // For production - configure endpoint in config
-                .Build();
+                .AddHttpClientInstrumentation();
+
+            if (useOtlp)
+            {
+                tracerProviderBuilder.AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri(otlpEndpoint);
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    // HttpClientFactory not needed for HTTP protocol
+                });
+            }
+            else
+            {
+                tracerProviderBuilder.AddConsoleExporter();
+            }
+
+            _tracerProvider = tracerProviderBuilder.Build();
+            System.Diagnostics.Trace.WriteLine($"[OTEL] TracerProvider built successfully");
 
             // Configure metrics
-            _meterProvider = Sdk.CreateMeterProviderBuilder()
+            var meterProviderBuilder = Sdk.CreateMeterProviderBuilder()
                 .SetResourceBuilder(resourceBuilder)
                 .AddMeter(ApiMeter.Name)
                 .AddMeter(MessagingMeter.Name)
                 .AddMeter(BackgroundServiceMeter.Name)
                 .AddAspNetInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddConsoleExporter() // For development
-                // .AddOtlpExporter() // For production - configure endpoint in config
-                .Build();
+                .AddHttpClientInstrumentation();
+
+            if (useOtlp)
+            {
+                meterProviderBuilder.AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri(otlpEndpoint.Replace("/v1/traces", "/v1/metrics"));
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    // HttpClientFactory not needed for HTTP protocol
+                });
+            }
+            else
+            {
+                meterProviderBuilder.AddConsoleExporter();
+            }
+
+            _meterProvider = meterProviderBuilder.Build();
+            System.Diagnostics.Trace.WriteLine($"[OTEL] MeterProvider built successfully");
+            System.Diagnostics.Trace.WriteLine($"[OTEL] OpenTelemetry initialization complete");
         }
 
         public static void Shutdown()

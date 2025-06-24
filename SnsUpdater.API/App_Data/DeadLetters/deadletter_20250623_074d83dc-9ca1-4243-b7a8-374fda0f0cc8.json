@@ -1,0 +1,17 @@
+{
+  "MessageId": "074d83dc-9ca1-4243-b7a8-374fda0f0cc8",
+  "CorrelationId": "6987ca9c-224b-4e42-aa16-21bff24b5e0b",
+  "EntityType": "Person",
+  "EntityId": "9436",
+  "Subject": "Person Created: Alice Walleck",
+  "Body": "{\"EventType\":\"PersonCreated\",\"PersonId\":9436,\"FirstName\":\"Alice\",\"LastName\":\"Walleck\",\"PhoneNumber\":\"2104544858\",\"CreatedAt\":\"2025-06-23T23:45:40.986318Z\",\"Timestamp\":\"2025-06-23T23:45:40.9951292Z\"}",
+  "CreatedAt": "2025-06-23T23:45:40.9951292Z",
+  "RetryCount": 3,
+  "LastRetryAt": "2025-06-23T23:45:47.5574823Z",
+  "FailedAt": "2025-06-23T23:45:47.5633668Z",
+  "Error": {
+    "Message": "Failed to publish message to SNS: Roles may not be assumed by root accounts.",
+    "StackTrace": "   at SnsUpdater.API.Infrastructure.Aws.SnsClient.<PublishAsync>d__14.MoveNext() in C:\\Users\\dwall\\repos\\SnsUpdater\\SnsUpdater.API\\Infrastructure\\Aws\\SnsClient.cs:line 124\r\n--- End of stack trace from previous location where exception was thrown ---\r\n   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()\r\n   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)\r\n   at System.Runtime.CompilerServices.TaskAwaiter`1.GetResult()\r\n   at SnsUpdater.API.Infrastructure.BackgroundServices.SnsBackgroundService.<ProcessMessageWithRetryAsync>d__13.MoveNext() in C:\\Users\\dwall\\repos\\SnsUpdater\\SnsUpdater.API\\Infrastructure\\BackgroundServices\\SnsBackgroundService.cs:line 125",
+    "Type": "System.InvalidOperationException"
+  }
+}

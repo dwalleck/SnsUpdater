@@ -176,7 +176,9 @@ namespace SnsUpdater.API.Infrastructure.Aws
                 // Set expiry 5 minutes before actual expiration
                 // This ensures we never attempt to use expired credentials
                 // which would result in authorization failures
-                _credentialsExpiry = response.Credentials.Expiration.AddMinutes(-5);
+                _credentialsExpiry = response.Credentials.Expiration.HasValue 
+                    ? response.Credentials.Expiration.Value.AddMinutes(-5) 
+                    : DateTime.UtcNow.AddHours(1);
                 
                 return response;
             }

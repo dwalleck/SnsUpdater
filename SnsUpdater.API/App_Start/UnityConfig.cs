@@ -7,6 +7,7 @@ using Unity.WebApi;
 using MediatR;
 using System.Reflection;
 using Unity.Lifetime;
+using Unity.AspNet.Mvc;
 
 namespace SnsUpdater.API
 {
@@ -20,21 +21,14 @@ namespace SnsUpdater.API
         {
             _container = new UnityContainer();
 
-            // Register MediatR
+            // Register MediatR 12.x
+            // First register IServiceProvider adapter for Unity
+            _container.RegisterInstance<IServiceProvider>(new UnityServiceProvider(_container));
+            
+            // Then register MediatR with the service provider
             _container.RegisterType<IMediator, Mediator>(new ContainerControlledLifetimeManager());
-            _container.RegisterInstance<ServiceFactory>(type =>
-            {
-                var enumerableType = type
-                    .GetInterfaces()
-                    .Concat(new[] { type })
-                    .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IEnumerable<>));
-
-                return enumerableType != null
-                    ? _container.ResolveAll(enumerableType.GetGenericArguments()[0])
-                    : _container.IsRegistered(type)
-                        ? _container.Resolve(type)
-                        : null;
-            });
+            
+            // Note: MediatR 12 will use its default INotificationPublisher internally
 
             // Register all MediatR handlers from current assembly
             RegisterMediatRHandlers(_container);
@@ -46,7 +40,7 @@ namespace SnsUpdater.API
             _container.RegisterType<Infrastructure.BackgroundServices.SnsBackgroundService>(new ContainerControlledLifetimeManager());
 
             // Set the dependency resolver
-            GlobalConfiguration.Configuration.DependencyResolver = new UnityDependencyResolver(_container);
+            GlobalConfiguration.Configuration.DependencyResolver = new Unity.WebApi.UnityDependencyResolver(_container);
         }
 
         private static void RegisterMediatRHandlers(IUnityContainer container)
@@ -103,6 +97,55 @@ namespace SnsUpdater.API
 
             var typeDefinition = type.GetGenericTypeDefinition();
             return typeDefinition == typeof(INotificationHandler<>);
+        }
+    }
+
+    /// <summary>
+    /// Unity ServiceProvider adapter for MediatR 12.x compatibility
+    /// MediatR 12 removed ServiceFactory delegate in favor of IServiceProvider
+    /// </summary>
+    public class UnityServiceProvider : IServiceProvider
+    {
+        private readonly IUnityContainer _container;
+
+        public UnityServiceProvider(IUnityContainer container)
+        {
+            _container = container ?? throw new ArgumentNullException(nameof(container));
+        }
+
+        public object GetService(Type serviceType)
+        {
+            try
+            {
+                // Handle IEnumerable<T> requests (for multiple handlers)
+                if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                {
+                    var elementType = serviceType.GetGenericArguments()[0];
+                    var instances = _container.ResolveAll(elementType);
+                    
+                    // Convert to array using LINQ
+                    var instanceArray = instances.Cast<object>().ToArray();
+                    
+                    // Create a typed array and populate it
+                    var typedArray = Array.CreateInstance(elementType, instanceArray.Length);
+                    for (int i = 0; i < instanceArray.Length; i++)
+                    {
+                        typedArray.SetValue(instanceArray[i], i);
+                    }
+                    return typedArray;
+                }
+
+                // For single service resolution
+                return _container.IsRegistered(serviceType) 
+                    ? _container.Resolve(serviceType) 
+                    : null;
+            }
+            catch (Exception)
+            {
+                // Unity throws exceptions for unregistered types
+                // Return null as per IServiceProvider contract
+                return null;
+            }
         }
     }
 }

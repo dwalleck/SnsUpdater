@@ -24,38 +24,41 @@ namespace SnsUpdater.API.Controllers
         [Route("")]
         public IHttpActionResult GetHealth()
         {
-            using var activity = TelemetryConfiguration.ApiActivitySource.StartActivity("HealthCheck");
-            
-            var health = new
+            System.Diagnostics.Trace.WriteLine($"[OTEL] Health endpoint called");
+            using (var activity = TelemetryConfiguration.ApiActivitySource.StartActivity("HealthCheck"))
             {
-                Status = "Healthy",
-                Timestamp = DateTime.UtcNow,
-                Services = new
+                System.Diagnostics.Trace.WriteLine($"[OTEL] Activity created: {activity?.Id}, IsRecording: {activity?.IsAllDataRequested}");
+                var health = new
                 {
-                    MessageQueue = new
+                    Status = "Healthy",
+                    Timestamp = DateTime.UtcNow,
+                    Services = new
                     {
-                        Status = "Healthy",
-                        QueuedMessages = _messageQueue.Count
+                        MessageQueue = new
+                        {
+                            Status = "Healthy",
+                            QueuedMessages = _messageQueue.Count
+                        },
+                        SnsClient = new
+                        {
+                            Status = _snsClient.IsCircuitOpen ? "Unhealthy - Circuit Open" : "Healthy",
+                            CircuitBreakerOpen = _snsClient.IsCircuitOpen
+                        }
                     },
-                    SnsClient = new
+                    Telemetry = new
                     {
-                        Status = _snsClient.IsCircuitOpen ? "Unhealthy - Circuit Open" : "Healthy",
-                        CircuitBreakerOpen = _snsClient.IsCircuitOpen
+                        ActiveTraces = Activity.Current != null,
+                        ActivitySources = new[]
+                        {
+                            TelemetryConfiguration.ApiActivitySource.Name,
+                            TelemetryConfiguration.MessagingActivitySource.Name,
+                            TelemetryConfiguration.BackgroundServiceActivitySource.Name
+                        }
                     }
-                },
-                Telemetry = new
-                {
-                    ActiveTraces = Activity.Current != null,
-                    ActivitySources = new[]
-                    {
-                        TelemetryConfiguration.ApiActivitySource.Name,
-                        TelemetryConfiguration.MessagingActivitySource.Name,
-                        TelemetryConfiguration.BackgroundServiceActivitySource.Name
-                    }
-                }
-            };
+                };
 
-            return Ok(health);
+                return Ok(health);
+            }
         }
 
         [HttpGet]
@@ -77,6 +80,52 @@ namespace SnsUpdater.API.Controllers
         {
             _snsClient.ResetCircuit();
             return Ok(new { Message = "Circuit breaker reset successfully", Timestamp = DateTime.UtcNow });
+        }
+
+        [HttpGet]
+        [Route("test")]
+        public IHttpActionResult TestTrace()
+        {
+            System.Diagnostics.Trace.WriteLine("[OTEL] TestTrace endpoint called");
+            
+            // Force a trace with all three activity sources
+            using (var apiActivity = TelemetryConfiguration.ApiActivitySource.StartActivity("TestTrace.API", ActivityKind.Server))
+            {
+                apiActivity?.SetTag("test.type", "manual");
+                apiActivity?.SetTag("test.timestamp", DateTime.UtcNow.ToString("o"));
+                System.Diagnostics.Trace.WriteLine($"[OTEL] API Activity: {apiActivity?.Id}, Recording: {apiActivity?.IsAllDataRequested}");
+                
+                using (var msgActivity = TelemetryConfiguration.MessagingActivitySource.StartActivity("TestTrace.Messaging", ActivityKind.Producer))
+                {
+                    msgActivity?.SetTag("test.queue.size", _messageQueue.Count);
+                    System.Diagnostics.Trace.WriteLine($"[OTEL] Messaging Activity: {msgActivity?.Id}, Recording: {msgActivity?.IsAllDataRequested}");
+                    
+                    using (var bgActivity = TelemetryConfiguration.BackgroundServiceActivitySource.StartActivity("TestTrace.Background", ActivityKind.Internal))
+                    {
+                        bgActivity?.SetTag("test.circuit.open", _snsClient.IsCircuitOpen);
+                        System.Diagnostics.Trace.WriteLine($"[OTEL] Background Activity: {bgActivity?.Id}, Recording: {bgActivity?.IsAllDataRequested}");
+                        
+                        // Also increment a metric
+                        TelemetryConfiguration.PersonsCreated.Add(1, 
+                            new System.Collections.Generic.KeyValuePair<string, object>("test", true));
+                        
+                        return Ok(new 
+                        { 
+                            Message = "Test trace created",
+                            Activities = new
+                            {
+                                Api = apiActivity?.Id,
+                                ApiRecording = apiActivity?.IsAllDataRequested,
+                                Messaging = msgActivity?.Id,
+                                MessagingRecording = msgActivity?.IsAllDataRequested,
+                                Background = bgActivity?.Id,
+                                BackgroundRecording = bgActivity?.IsAllDataRequested
+                            },
+                            Timestamp = DateTime.UtcNow 
+                        });
+                    }
+                }
+            }
         }
     }
 }

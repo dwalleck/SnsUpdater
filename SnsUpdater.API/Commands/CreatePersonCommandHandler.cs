@@ -19,12 +19,13 @@ namespace SnsUpdater.API.Commands
 
         public async Task<CreatePersonResult> Handle(CreatePersonCommand request, CancellationToken cancellationToken)
         {
-            using var activity = TelemetryConfiguration.ApiActivitySource.StartActivity("CreatePerson");
-            activity?.SetTag("person.firstName", request.FirstName);
-            activity?.SetTag("person.lastName", request.LastName);
-
-            try
+            using (var activity = TelemetryConfiguration.ApiActivitySource.StartActivity("CreatePerson"))
             {
+                activity?.SetTag("person.firstName", request.FirstName);
+                activity?.SetTag("person.lastName", request.LastName);
+
+                try
+                {
                 // Validate input
                 if (string.IsNullOrWhiteSpace(request.FirstName) || 
                     string.IsNullOrWhiteSpace(request.LastName))
@@ -80,7 +81,8 @@ namespace SnsUpdater.API.Commands
             catch (Exception ex)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.RecordException(ex);
+                activity?.SetTag("exception.type", ex.GetType().FullName);
+                activity?.SetTag("exception.message", ex.Message);
                 
                 TelemetryConfiguration.PersonsCreated.Add(1, 
                     new System.Collections.Generic.KeyValuePair<string, object>("status", "error"));
@@ -90,6 +92,7 @@ namespace SnsUpdater.API.Commands
                     Success = false,
                     Message = $"An error occurred while creating the person: {ex.Message}"
                 };
+            }
             }
         }
     }

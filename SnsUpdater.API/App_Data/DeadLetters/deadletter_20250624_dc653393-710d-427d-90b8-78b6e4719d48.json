@@ -1,0 +1,17 @@
+{
+  "MessageId": "dc653393-710d-427d-90b8-78b6e4719d48",
+  "CorrelationId": "2da6db2e-3167-4e11-8f3b-b61fb84cfac6",
+  "EntityType": "Person",
+  "EntityId": "5987",
+  "Subject": "Person Created: Alice Walleck",
+  "Body": "{\"EventType\":\"PersonCreated\",\"PersonId\":5987,\"FirstName\":\"Alice\",\"LastName\":\"Walleck\",\"PhoneNumber\":\"2104544858\",\"CreatedAt\":\"2025-06-24T00:22:00.1568323Z\",\"Timestamp\":\"2025-06-24T00:22:00.1568323Z\"}",
+  "CreatedAt": "2025-06-24T00:22:00.1568323Z",
+  "RetryCount": 3,
+  "LastRetryAt": "2025-06-24T00:22:10.0708063Z",
+  "FailedAt": "2025-06-24T00:22:10.0708063Z",
+  "Error": {
+    "Message": "Circuit breaker is open. SNS service is temporarily unavailable.",
+    "StackTrace": "   at SnsUpdater.API.Infrastructure.Aws.SnsClient.<PublishAsync>d__14.MoveNext() in C:\\Users\\dwall\\repos\\SnsUpdater\\SnsUpdater.API\\Infrastructure\\Aws\\SnsClient.cs:line 79\r\n--- End of stack trace from previous location where exception was thrown ---\r\n   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()\r\n   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)\r\n   at System.Runtime.CompilerServices.TaskAwaiter`1.GetResult()\r\n   at SnsUpdater.API.Infrastructure.BackgroundServices.SnsBackgroundService.<ProcessMessageWithRetryAsync>d__13.MoveNext() in C:\\Users\\dwall\\repos\\SnsUpdater\\SnsUpdater.API\\Infrastructure\\BackgroundServices\\SnsBackgroundService.cs:line 125",
+    "Type": "System.InvalidOperationException"
+  }
+}
